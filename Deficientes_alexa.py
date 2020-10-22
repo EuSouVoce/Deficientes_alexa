@@ -8,107 +8,105 @@ from ask_sdk_core.dispatch_components import AbstractExceptionHandler
 from ask_sdk_model.dialog import ElicitSlotDirective
 import pymysql.cursors
 
-
 sb = SkillBuilder()
 
 
 connection = pymysql.connect(
-    host='localhost',
-    user='root',
-    passwd='',
-    database='deficientes_projeto'
-)
+    host="localhost",
+    user="root",
+    passwd="",
+    database="deficientes_projeto"
+    )
 
 cursor = connection.cursor()
 
-
-class LaunchRequestHandler(AbstractRequestHandler):
-    def can_handle(self, handler_input):
+class Handler(object):
+    """Implementa funções compartilhadas entre classes"""
+    def can_handle(self, handler_input, nome):
+        """return a boolean value depending on the type"""
         # type: (HandlerInput) -> bool
-        return is_request_type("LaunchRequest")(handler_input)
+        if "request" in nome.lower():
+            return is_request_type(nome)(handler_input)
+        elif "intent" in nome.lower():
+            return is_intent_type(nome)(handler_input)
+            raise Exception("Nome do Handler inválido!")
 
+    #   aaaa
+    def handle(self, handler_input, speech_text):
+        """Handles the given alexa inputs"""
+        
+        # type: (HandlerInput) -> Response
+        # any cleanup logic goes here
+        if speech_text:
+            handler_input.response_builder.speak(speech_text).set_card(
+                SimpleCard("Hello World", speech_text)).set_should_end_session(
+                False)
+            #Retorna resposta
+            return handler_input.response_builder.response
+
+
+
+
+class LaunchRequestHandler(AbstractRequestHandler, Handler):
+    can_handle(self, handler_input, __class__.__name__)
+    handle(self, handler_input, "Skill em desenvolvimento"):
+
+class OpcaoUmIntentHandler(AbstractRequestHandler, Handler):
+    can_handle(self, handler_input, __class__.__name__)
+
+    slots = handler_input.request_envelope.request.intent.slots
+    nome = slots["Rua"].value
+    speak_output = f"O nome da \"{nome}\" foi adicionado com sucesso."
+
+    #Resposta da alexa
+    handle(self, handler_input, speak_output):
+
+    #Insere no DB
+    comando_SQL = "INSERT INTO lugar (rua) VALUES (%s)"
+    cursor.execute(comando_SQL, (nome))
+    connection.commit()
+
+    return handler_input.response_builder.response
+
+
+class OpcaoDoisIntentHandler(AbstractRequestHandler, Handler):
+    can_handle(self, handler_input, __class__.__name__)
+    
+    #Sobrescreve a função handle da classe mãe
     def handle(self, handler_input):
         # type: (HandlerInput) -> Response
-        speech_text = 'Skill em desenvolvimento'
 
-        handler_input.response_builder.speak(speech_text).set_card(
-            SimpleCard("Hello World", speech_text)).set_should_end_session(
-            False)
-        return handler_input.response_builder.response
-
-
-class OpcaoUmIntentHandler(AbstractRequestHandler):
-    def can_handle(self, handler_input):
-        return is_intent_name('OpcaoUmIntent')(handler_input)
-
-
-    def handle(self, handler_input):
-        slots = handler_input.request_envelope.request.intent.slots
-        nome = slots["Rua"].value
-
-        speak_output = f'O nome da "{nome}" foi adicionado com sucesso.'
-
-        handler_input.response_builder.speak(speak_output).set_card(
-            SimpleCard("Hello World", speak_output)).set_should_end_session(
-            True)
-
-        comando_SQL = "INSERT INTO lugar (rua) VALUES (%s)"
-        cursor.execute(comando_SQL, (nome))
-        connection.commit()
-
-        return handler_input.response_builder.response
-
-
-
-
-
-class OpcaoDoisIntentHandler(AbstractRequestHandler):
-    def can_handle(self, handler_input):
-        # type: (HandlerInput) -> bool
-        return is_intent_name("OpcaoDoisIntent")(handler_input)
-
-    def handle(self, handler_input):
-        # type: (HandlerInput) -> Response
-        comando_SQL = 'SELECT * FROM lugar'
+        comando_SQL = "SELECT * FROM lugar"
         cursor.execute(comando_SQL)
         valores_lidos = cursor.fetchall()
         lista = []
+
         for c in valores_lidos:
             lista.append(c)
 
-        values = ' '.join(str(v) for v in lista)
+            values = ' '.join(str(v) for v in lista)
 
-        handler_input.response_builder.speak(values).set_card(
-            SimpleCard("Hello World", values)).set_should_end_session(
-            True)
+            handler_input.response_builder.speak(values).set_card(
+                SimpleCard("Hello World", values)).set_should_end_session(
+                True)
+        # Retorna
         return handler_input.response_builder.response
 
 
-class CancelAndStopIntentHandler(AbstractRequestHandler):
+class CancelAndStopIntentHandler(AbstractRequestHandler, Handler):
+    #Sobrescreve a função da classe mãe
     def can_handle(self, handler_input):
         # type: (HandlerInput) -> bool
         return is_intent_name("AMAZON.CancelIntent")(handler_input) or is_intent_name("AMAZON.StopIntent")(
             handler_input)
-
-    def handle(self, handler_input):
-        # type: (HandlerInput) -> Response
-        speech_text = "Goodbye!"
-
-        handler_input.response_builder.speak(speech_text).set_card(
-            SimpleCard("Hello World", speech_text)).set_should_end_session(True)
-        return handler_input.response_builder.response
+    handle(self, handler_input, "Cancelado!")
 
 
-class SessionEndedRequestHandler(AbstractRequestHandler):
+class SessionEndedRequestHandler(AbstractRequestHandler, Handler):
     def can_handle(self, handler_input):
         # type: (HandlerInput) -> bool
         return is_request_type("SessionEndedRequest")(handler_input)
-
-    def handle(self, handler_input):
-        # type: (HandlerInput) -> Response
-        # any cleanup logic goes here
-
-        return handler_input.response_builder.response
+    handle(self, handler_input, "Goodbye!")
 
 
 sb.add_request_handler(LaunchRequestHandler())
